@@ -1,0 +1,40 @@
+{
+  "name": "express-circuit-shield",
+  "version": "1.0.0",
+  "description": "A plug-and-play circuit breaker middleware for Express.js — protect your app from cascading failures caused by slow or failing external services",
+  "main": "src/index.js",
+  "scripts": {
+    "test": "jest --coverage",
+    "test:watch": "jest --watch",
+    "example": "node examples/basic.js"
+  },
+  "keywords": [
+    "express",
+    "middleware",
+    "circuit-breaker",
+    "resilience",
+    "fault-tolerance",
+    "microservices"
+  ],
+  "author": "",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/yourusername/express-circuit-shield.git"
+  },
+  "bugs": {
+    "url": "https://github.com/yourusername/express-circuit-shield/issues"
+  },
+  "homepage": "https://github.com/yourusername/express-circuit-shield#readme",
+  "engines": {
+    "node": ">=14.0.0"
+  },
+  "peerDependencies": {
+    "express": ">=4.0.0"
+  },
+  "devDependencies": {
+    "express": "^4.18.2",
+    "jest": "^29.7.0",
+    "supertest": "^6.3.3"
+  }
+}
