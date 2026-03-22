@@ -95,6 +95,23 @@ describe('CircuitBreaker', () => {
       breaker.recordFailure();
       expect(breaker.state).toBe(STATE.OPEN);
     });
+
+    it('blocks concurrent requests in HALF_OPEN — only one probe allowed', async () => {
+      breaker = new CircuitBreaker({ name: 'test', failureThreshold: 1, timeout: 50 });
+      breaker.recordFailure();
+      await new Promise((r) => setTimeout(r, 60));
+
+      // First canRequest() triggers OPEN → HALF_OPEN and allows probe
+      expect(breaker.canRequest()).toBe(true);
+      // Subsequent concurrent calls must be blocked until probe resolves
+      expect(breaker.canRequest()).toBe(false);
+      expect(breaker.canRequest()).toBe(false);
+
+      // After probe resolves (success), lock is released and circuit closes
+      breaker.recordSuccess();
+      breaker.recordSuccess();
+      expect(breaker.state).toBe(STATE.CLOSED);
+    });
   });
 
   describe('onStateChange callback', () => {

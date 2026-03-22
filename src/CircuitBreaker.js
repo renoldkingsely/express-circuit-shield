@@ -25,6 +25,7 @@ class CircuitBreaker {
     this.successCount = 0;
     this.lastFailureTime = null;
     this.nextAttemptTime = null;
+    this._probeInFlight = false; // ensures only one probe at a time in HALF_OPEN
   }
 
   get state() {
@@ -41,12 +42,15 @@ class CircuitBreaker {
     if (this._state === STATE.OPEN) {
       if (Date.now() >= this.nextAttemptTime) {
         this._transition(STATE.HALF_OPEN);
+        this._probeInFlight = true;
         return true;
       }
       return false;
     }
 
-    // HALF_OPEN: allow one probe request
+    // HALF_OPEN: allow only one probe at a time
+    if (this._probeInFlight) return false;
+    this._probeInFlight = true;
     return true;
   }
 
@@ -57,6 +61,7 @@ class CircuitBreaker {
    */
   recordSuccess() {
     if (this._state === STATE.HALF_OPEN) {
+      this._probeInFlight = false;
       this.successCount++;
       if (this.successCount >= this.successThreshold) {
         this._reset();
@@ -73,6 +78,7 @@ class CircuitBreaker {
    * In CLOSED: increment failure count and trip if threshold reached.
    */
   recordFailure() {
+    this._probeInFlight = false;
     this.failureCount++;
     this.lastFailureTime = Date.now();
 
@@ -105,6 +111,7 @@ class CircuitBreaker {
     this.failureCount = 0;
     this.successCount = 0;
     this.nextAttemptTime = null;
+    this._probeInFlight = false;
   }
 
   _transition(newState) {
