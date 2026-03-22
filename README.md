@@ -336,7 +336,7 @@ You do not need to manually report success or failure — it is handled transpar
 ## Running the Example
 
 ```bash
-git clone https://github.com/yourusername/express-circuit-shield.git
+git clone https://github.com/renoldkingsely/express-circuit-shield.git
 cd express-circuit-shield
 npm install
 npm run example

@@ -25,4 +25,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - 21 unit and integration tests with ~98% statement coverage
 - Basic usage example with flaky service simulation (`examples/basic.js`)
 
-[1.0.0]: https://github.com/yourusername/express-circuit-shield/releases/tag/v1.0.0
+[1.0.0]: https://github.com/renoldkingsely/express-circuit-shield/releases/tag/v1.0.0

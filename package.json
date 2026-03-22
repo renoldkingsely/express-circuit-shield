@@ -30,16 +30,16 @@
     "fault-tolerance",
     "microservices"
   ],
-  "author": "",
+  "author": "renoldkingsely <renoldkingsely@gmail.com>",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/yourusername/express-circuit-shield.git"
+    "url": "https://github.com/renoldkingsely/express-circuit-shield.git"
   },
   "bugs": {
-    "url": "https://github.com/yourusername/express-circuit-shield/issues"
+    "url": "https://github.com/renoldkingsely/express-circuit-shield/issues"
   },
-  "homepage": "https://github.com/yourusername/express-circuit-shield#readme",
+  "homepage": "https://github.com/renoldkingsely/express-circuit-shield#readme",
   "engines": {
     "node": ">=14.0.0"
   },
