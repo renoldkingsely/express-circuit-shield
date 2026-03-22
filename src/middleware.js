@@ -44,26 +44,21 @@ function circuitShield(options = {}) {
       });
     }
 
-    // Intercept res.json and res.send to detect 5xx responses
-    const originalJson = res.json.bind(res);
-    const originalSend = res.send.bind(res);
+    // Intercept res.end (lowest level) to detect 5xx responses.
+    // Patching res.end avoids double-counting since res.json → res.send → res.end.
+    const originalEnd = res.end.bind(res);
+    let observed = false;
 
-    function observe(statusCode) {
-      if (statusCode >= 500) {
-        breaker.recordFailure();
-      } else {
-        breaker.recordSuccess();
+    res.end = function (...args) {
+      if (!observed) {
+        observed = true;
+        if (res.statusCode >= 500) {
+          breaker.recordFailure();
+        } else {
+          breaker.recordSuccess();
+        }
       }
-    }
-
-    res.json = function (body) {
-      observe(res.statusCode);
-      return originalJson(body);
-    };
-
-    res.send = function (body) {
-      observe(res.statusCode);
-      return originalSend(body);
+      return originalEnd(...args);
     };
 
     // Catch errors passed to next(err)
