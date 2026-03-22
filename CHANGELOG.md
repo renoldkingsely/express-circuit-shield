@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [Unreleased]
+
+### Fixed
+- HALF_OPEN concurrency bug — only one probe request is now allowed at a time via `_probeInFlight` flag
+
+### Added
+- `requestTimeout` option — aborts slow requests and counts them as failures, returns 504
+- TypeScript type declarations (`src/index.d.ts`) — full type coverage for all exports
+- GitHub Actions CI — tests run on Node 18, 20, and 22 on every push and PR
+
+---
+
 ## [1.0.0] - 2026-03-22
 
 ### Added
