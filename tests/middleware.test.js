@@ -101,6 +101,37 @@ describe('circuitShield middleware', () => {
     });
   });
 
+  describe('requestTimeout', () => {
+    it('returns 504 and counts as failure when route exceeds requestTimeout', async () => {
+      const app = buildApp(
+        { name: NAME, requestTimeout: 50 },
+        (req, res) => {
+          // Simulate a slow route — middleware times out first, then this fires
+          setTimeout(() => { if (!res.headersSent) res.json({ ok: true }); }, 200);
+        }
+      );
+
+      const res = await request(app).get('/test');
+      expect(res.status).toBe(504);
+      expect(res.body.error).toBe('Gateway Timeout');
+
+      const status = getCircuitStatus(NAME);
+      expect(status.failureCount).toBe(1);
+    }, 10000);
+
+    it('does not trigger timeout when route responds in time', async () => {
+      const app = buildApp(
+        { name: NAME, requestTimeout: 500 },
+        (req, res) => res.json({ ok: true })
+      );
+
+      const res = await request(app).get('/test');
+      expect(res.status).toBe(200);
+      const status = getCircuitStatus(NAME);
+      expect(status.failureCount).toBe(0);
+    });
+  });
+
   describe('circuitStatusHandler', () => {
     it('returns JSON with state of all circuits', async () => {
       const app = buildApp({ name: NAME }, (req, res) => res.json({ ok: true }));

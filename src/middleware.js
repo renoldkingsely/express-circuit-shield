@@ -11,6 +11,7 @@ const registry = new Map();
  * @param {number}   [options.failureThreshold] - Failures before opening (default: 5)
  * @param {number}   [options.successThreshold] - Successes to close from HALF_OPEN (default: 2)
  * @param {number}   [options.timeout]          - ms before retrying after OPEN (default: 10000)
+ * @param {number}   [options.requestTimeout]   - ms before a slow request is aborted and counted as failure (default: disabled)
  * @param {Function} [options.fallback]         - (req, res, status) => void — custom OPEN response
  * @param {Function} [options.onStateChange]    - (name, from, to) => void
  *
@@ -49,24 +50,39 @@ function circuitShield(options = {}) {
     const originalEnd = res.end.bind(res);
     let observed = false;
 
+    function observe(failed) {
+      if (observed) return;
+      observed = true;
+      if (timeoutHandle) clearTimeout(timeoutHandle);
+      failed ? breaker.recordFailure() : breaker.recordSuccess();
+    }
+
     res.end = function (...args) {
-      if (!observed) {
-        observed = true;
-        if (res.statusCode >= 500) {
-          breaker.recordFailure();
-        } else {
-          breaker.recordSuccess();
-        }
-      }
+      observe(res.statusCode >= 500);
       return originalEnd(...args);
     };
 
     // Catch errors passed to next(err)
     const originalNext = next;
     next = function (err) {
-      if (err) breaker.recordFailure();
+      if (err) observe(true);
       originalNext(err);
     };
+
+    // Request timeout — treat slow requests as failures
+    let timeoutHandle = null;
+    if (options.requestTimeout > 0) {
+      timeoutHandle = setTimeout(() => {
+        observe(true);
+        if (!res.headersSent) {
+          res.status(504).json({
+            error: 'Gateway Timeout',
+            message: `Request to circuit "${options.name}" timed out after ${options.requestTimeout}ms`,
+            circuit: options.name,
+          });
+        }
+      }, options.requestTimeout);
+    }
 
     next();
   };
