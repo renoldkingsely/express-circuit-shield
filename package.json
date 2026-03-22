@@ -3,10 +3,24 @@
   "version": "1.0.0",
   "description": "A plug-and-play circuit breaker middleware for Express.js — protect your app from cascading failures caused by slow or failing external services",
   "main": "src/index.js",
+  "files": [
+    "src/"
+  ],
   "scripts": {
     "test": "jest --coverage",
     "test:watch": "jest --watch",
     "example": "node examples/basic.js"
+  },
+  "jest": {
+    "testEnvironment": "node",
+    "testMatch": [
+      "**/tests/**/*.test.js"
+    ],
+    "coverageDirectory": "coverage",
+    "coverageReporters": [
+      "text",
+      "lcov"
+    ]
   },
   "keywords": [
     "express",

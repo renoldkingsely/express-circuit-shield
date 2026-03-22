@@ -1,0 +1,23 @@
+# Test files
+tests/
+coverage/
+.nyc_output/
+
+# Examples
+examples/
+
+# Dev config
+.eslintrc*
+.prettierrc*
+jest.config.*
+
+# CI / GitHub
+.github/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
