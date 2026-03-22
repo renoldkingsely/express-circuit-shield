@@ -2,6 +2,7 @@
 
 > A plug-and-play circuit breaker middleware for Express.js — protect your app from cascading failures caused by slow or failing external services.
 
+[![CI](https://github.com/renoldkingsely/express-circuit-shield/actions/workflows/ci.yml/badge.svg)](https://github.com/renoldkingsely/express-circuit-shield/actions/workflows/ci.yml)
 [![npm version](https://img.shields.io/npm/v/express-circuit-shield.svg)](https://www.npmjs.com/package/express-circuit-shield)
 [![license](https://img.shields.io/npm/l/express-circuit-shield.svg)](LICENSE)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
@@ -13,7 +14,7 @@
 When your Express app depends on external services — REST APIs, databases, microservices — a single failing service can take down your entire application.
 
 ```
-User → Your Express App → External API (DOWN)
+User → Your Express App → External API (DOWN or SLOW)
                                ↑
                     waits 30s... timeout... error
                     waits 30s... timeout... error
@@ -34,7 +35,7 @@ Most Node.js circuit breaker libraries (like `opossum`) require you to wrap ever
 `express-circuit-shield` works as a standard Express middleware — drop it in front of any route, zero refactoring required.
 
 ```js
-app.use('/api/payments', circuitShield({ name: 'payments' }))
+app.use('/api/orders', circuitShield({ name: 'orders-service' }))
 ```
 
 That's it. Your route is now protected.
@@ -62,8 +63,8 @@ CLOSED ─────────────────────► OPEN �
 ### In plain English
 
 1. Requests pass through normally **(CLOSED)**
-2. After 5 failures in a row → circuit **OPENS** — stops hitting the dead service
-3. After 10 seconds → **HALF-OPEN** — sends one test request through
+2. After 5 failures → circuit **OPENS** — stops hitting the dead service
+3. After 10 seconds → **HALF-OPEN** — sends one probe request through
 4. If it succeeds → back to **CLOSED** (service recovered)
 5. If it fails → back to **OPEN** (still down, wait again)
 
@@ -81,7 +82,9 @@ CLOSED ─────────────────────► OPEN �
 | Requires wrapping every function call | Yes | No |
 | Drop-in with zero code refactor | No | Yes |
 | Route-level granularity | No | Yes |
+| Built-in request timeout (slow API protection) | No | Yes |
 | Built-in status dashboard endpoint | No | Yes |
+| TypeScript support | Yes | Yes |
 | Works outside Express (generic Node.js) | Yes | No |
 | Mature, production-battle-tested | Yes | Growing |
 
@@ -131,11 +134,12 @@ Returns an Express middleware. Apply it to any route or router.
 const { circuitShield } = require('express-circuit-shield');
 
 app.use('/api/data', circuitShield({
-  name: 'my-service',          // required — unique name for this circuit
-  failureThreshold: 5,         // failures before opening  (default: 5)
-  successThreshold: 2,         // successes to close from half-open (default: 2)
-  timeout: 10000,              // ms before retrying after open (default: 10000)
-  fallback: (req, res) => {},  // custom response when circuit is open (optional)
+  name: 'my-service',           // required — unique name for this circuit
+  failureThreshold: 5,          // failures before opening (default: 5)
+  successThreshold: 2,          // successes to close from HALF-OPEN (default: 2)
+  timeout: 10000,               // ms before retrying after OPEN (default: 10000)
+  requestTimeout: 5000,         // ms before aborting a slow request (default: disabled)
+  fallback: (req, res) => {},   // custom response when circuit is OPEN (optional)
   onStateChange: (name, from, to) => {}, // called on state transitions (optional)
 }));
 ```
@@ -148,6 +152,7 @@ app.use('/api/data', circuitShield({
 | `failureThreshold` | `number` | `5` | Number of consecutive failures before the circuit opens |
 | `successThreshold` | `number` | `2` | Number of consecutive successes to close from HALF-OPEN |
 | `timeout` | `number` | `10000` | Milliseconds to wait before transitioning from OPEN to HALF-OPEN |
+| `requestTimeout` | `number` | `disabled` | Milliseconds before a slow request is aborted and counted as a failure. Returns `504 Gateway Timeout` |
 | `fallback` | `Function` | `null` | `(req, res, status) => void` — custom handler when circuit is OPEN |
 | `onStateChange` | `Function` | `null` | `(name, fromState, toState) => void` — called on every state transition |
 
@@ -167,16 +172,16 @@ app.get('/circuits', circuitStatusHandler);
 
 ```json
 {
-  "payments": {
-    "name": "payments",
+  "orders-service": {
+    "name": "orders-service",
     "state": "OPEN",
     "failureCount": 5,
     "successCount": 0,
     "lastFailureTime": 1711090800000,
     "nextAttemptTime": 1711090810000
   },
-  "inventory": {
-    "name": "inventory",
+  "inventory-service": {
+    "name": "inventory-service",
     "state": "CLOSED",
     "failureCount": 0,
     "successCount": 3,
@@ -195,8 +200,8 @@ Programmatically get the status of one or all circuits.
 ```js
 const { getCircuitStatus } = require('express-circuit-shield');
 
-getCircuitStatus('payments'); // status of one circuit
-getCircuitStatus();           // status of all circuits
+getCircuitStatus('orders-service'); // status of one circuit
+getCircuitStatus();                 // status of all circuits
 ```
 
 ---
@@ -208,7 +213,7 @@ Removes a circuit from the registry. Primarily useful in tests.
 ```js
 const { resetCircuit } = require('express-circuit-shield');
 
-afterEach(() => resetCircuit('payments'));
+afterEach(() => resetCircuit('orders-service'));
 ```
 
 ---
@@ -232,6 +237,26 @@ app.get(
   }
 );
 ```
+
+---
+
+### Protect Against Slow APIs
+
+If an external API hangs and takes too long to respond, it will hold connections open and exhaust your server. Use `requestTimeout` to cut it off:
+
+```js
+app.use(
+  '/api/reports',
+  circuitShield({
+    name: 'reports-service',
+    requestTimeout: 5000, // abort if no response within 5 seconds
+  })
+);
+```
+
+- If the route does not respond within 5000ms, the middleware:
+  - Returns `504 Gateway Timeout` immediately
+  - Counts it as a failure — repeated timeouts will trip the circuit open
 
 ---
 
@@ -286,7 +311,7 @@ app.use('/api/notifications',  circuitShield({ name: 'notifications' }));
 ### Apply to an Entire Router
 
 ```js
-const paymentsRouter = require('./routes/payments');
+const ordersRouter = require('./routes/orders');
 const { circuitShield } = require('express-circuit-shield');
 
 app.use('/api/orders', circuitShield({ name: 'orders-service' }), ordersRouter);
@@ -304,9 +329,34 @@ Mount this on an internal/admin route to monitor all your circuit states in real
 
 ---
 
-## Default 503 Response (when circuit is OPEN)
+### TypeScript Usage
 
-When no fallback is provided and the circuit is OPEN, the middleware returns:
+Full TypeScript support is included — no `@types` package needed.
+
+```ts
+import express from 'express';
+import { circuitShield, circuitStatusHandler, CircuitShieldOptions, STATE } from 'express-circuit-shield';
+
+const app = express();
+
+const options: CircuitShieldOptions = {
+  name: 'orders-service',
+  failureThreshold: 5,
+  requestTimeout: 3000,
+  onStateChange: (name, from, to) => {
+    if (to === STATE.OPEN) console.warn(`[${name}] circuit opened`);
+  },
+};
+
+app.use('/api/orders', circuitShield(options));
+app.get('/circuits', circuitStatusHandler);
+```
+
+---
+
+## Default Responses
+
+### When circuit is OPEN (no fallback provided)
 
 ```json
 {
@@ -317,17 +367,30 @@ When no fallback is provided and the circuit is OPEN, the middleware returns:
 }
 ```
 
-HTTP status code: `503`
+HTTP status: `503`
+
+### When requestTimeout is exceeded
+
+```json
+{
+  "error": "Gateway Timeout",
+  "message": "Request to circuit \"orders-service\" timed out after 5000ms",
+  "circuit": "orders-service"
+}
+```
+
+HTTP status: `504`
 
 ---
 
 ## How Failures Are Detected
 
-The middleware intercepts `res.json()` and `res.send()` calls automatically:
+The middleware intercepts `res.end` (the lowest-level response method) automatically:
 
 - **5xx status codes** → counted as failures
 - **2xx / 3xx / 4xx** → counted as successes
 - **Errors passed to `next(err)`** → counted as failures
+- **Requests exceeding `requestTimeout`** → counted as failures
 
 You do not need to manually report success or failure — it is handled transparently.
 
@@ -346,7 +409,7 @@ Then in another terminal:
 
 ```bash
 # Hit the route repeatedly to see the circuit open
-for i in $(seq 1 10); do curl http://localhost:3000/api/data; echo; done
+for i in $(seq 1 12); do curl -s http://localhost:3000/api/data; echo; done
 
 # Check live circuit status
 curl http://localhost:3000/circuits
@@ -362,21 +425,28 @@ Watch the terminal logs as the circuit transitions: `CLOSED → OPEN → HALF-OP
 npm test
 ```
 
+**24 tests, ~97% coverage** across unit and integration suites.
+
 ---
 
 ## Project Structure
 
 ```
 express-circuit-shield/
+├── .github/
+│   └── workflows/
+│       └── ci.yml            # GitHub Actions — tests on Node 18, 20, 22
 ├── src/
-│   ├── index.js          # Package entry point
-│   ├── CircuitBreaker.js # Core state machine (CLOSED / OPEN / HALF-OPEN)
-│   └── middleware.js     # Express middleware, registry, and status handler
+│   ├── index.js              # Package entry point
+│   ├── index.d.ts            # TypeScript type declarations
+│   ├── CircuitBreaker.js     # Core state machine (CLOSED / OPEN / HALF-OPEN)
+│   └── middleware.js         # Express middleware, registry, and status handler
 ├── tests/
 │   ├── CircuitBreaker.test.js
 │   └── middleware.test.js
 ├── examples/
 │   └── basic.js
+├── CHANGELOG.md
 └── package.json
 ```
 
@@ -388,7 +458,7 @@ Pull requests are welcome. For major changes, please open an issue first to disc
 
 1. Fork the repository
 2. Create your feature branch (`git checkout -b feature/my-feature`)
-3. Commit your changes (`git commit -m 'Add my feature'`)
+3. Commit your changes following [Conventional Commits](https://www.conventionalcommits.org/)
 4. Push to the branch (`git push origin feature/my-feature`)
 5. Open a Pull Request
 
